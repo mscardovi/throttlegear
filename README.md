@@ -48,7 +48,7 @@ Success! Processed file saved to: /absolute/path/to/output.xml
 If you are using this tool to compile a quirk entry for the Linux kernel `asus-armoury` driver, you can use the `-c` / `--c-struct` argument. This automatically decrypts the XML in-memory if needed, extracts the power/thermal limits, and formats them as a C struct initialization block:
 
 ```bash
-python ThrottleGearXML.py -i ThrottleGear_YOURMODEL.xml -c --gpu-base-tgp 65
+python ThrottleGearXML.py -i ThrottleGear_YOURMODEL.xml -c
 ```
 
 **Additional Options for C Struct Generation:**
