@@ -43,6 +43,17 @@ Upon successful completion, the script will output:
 Success! Processed file saved to: /absolute/path/to/output.xml
 ```
 
+### Generating Linux Kernel `asus-armoury` Power Limits Struct:
+If you are using this tool to compile a quirk entry for the Linux kernel `asus-armoury` driver, you can use the `-c` / `--c-struct` argument. This automatically decrypts the XML in-memory if needed, extracts the power/thermal limits, and formats them as a C struct initialization block:
+
+```bash
+python ThrottleGearXML.py -i ThrottleGear_YOURMODEL.xml -c --gpu-base-tgp 65
+```
+
+**Additional Options for C Struct Generation:**
+*   `--gpu-base-tgp <watts>`: Specifies the baseline GPU TGP in Watts (default is `55`). This base value is added to the XML's GPU TGP offsets to produce absolute limits (e.g., `65W` base + `50W` offset = `115W` max).
+*   `--no-fan-curve`: Sets `.requires_fan_curve = false` in the generated struct (defaults to `true`).
+
 ---
 
 ## Legal Disclaimer

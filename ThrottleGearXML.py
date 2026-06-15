@@ -260,16 +260,193 @@ def process_file(input_path, output_path):
         
     print(f"Success! Processed file saved to: {output_path}")
 
+def generate_c_struct(root, gpu_base_tgp=55, requires_fan_curve=True):
+    model_name = root.attrib.get("ModelName", "UNKNOWN")
+    
+    # Extract AC limits
+    ac_limits = {}
+    cpu_settings = root.find(".//ThrottlePluginCPUSettings")
+    if cpu_settings is not None:
+        overclock_items = cpu_settings.find("OverclockItems")
+        if overclock_items is not None:
+            for tag, field in [
+                ("STAPM", "ppt_pl1_spl"),
+                ("PPTLimit", "ppt_pl2_sppt"),
+                ("fPPTLimit", "ppt_pl3_fppt"),
+                ("APUsPPTLimit", "ppt_apu_sppt"),
+                ("PlatformsPPT", "ppt_platform_sppt")
+            ]:
+                elem = overclock_items.find(tag)
+                if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                    try:
+                        min_val = int(elem.attrib.get("LowerLimit", 0))
+                        max_val = int(elem.attrib.get("UpperLimit", 0))
+                        def_val = int(elem.attrib.get("Manual", 0))
+                    except ValueError:
+                        continue
+                    if min_val != 0 or max_val != 0:
+                        ac_limits[f"{field}_min"] = min_val
+                        if def_val != max_val and def_val != 0:
+                            ac_limits[f"{field}_def"] = def_val
+                        ac_limits[f"{field}_max"] = max_val
+
+    gpu_settings = root.find(".//ThrottlePluginGPUSettings")
+    if gpu_settings is not None:
+        gpu_overclock = gpu_settings.find("NonSLIOverclockItems")
+        if gpu_overclock is not None:
+            # NBThermalTarget
+            elem = gpu_overclock.find("NBThermalTarget")
+            if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                try:
+                    min_val = int(elem.attrib.get("LowerLimit", 0))
+                    max_val = int(elem.attrib.get("UpperLimit", 0))
+                except ValueError:
+                    pass
+                else:
+                    if min_val != 0 or max_val != 0:
+                        ac_limits["nv_temp_target_min"] = min_val
+                        ac_limits["nv_temp_target_max"] = max_val
+            # DynamicBoost
+            elem = gpu_overclock.find("DynamicBoost")
+            if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                try:
+                    min_val = int(elem.attrib.get("LowerLimit", 0))
+                    max_val = int(elem.attrib.get("UpperLimit", 0))
+                except ValueError:
+                    pass
+                else:
+                    if min_val != 0 or max_val != 0:
+                        ac_limits["nv_dynamic_boost_min"] = min_val
+                        ac_limits["nv_dynamic_boost_max"] = max_val
+        # TGP
+        tgp_items = gpu_settings.find("NonSLITGPItems")
+        if tgp_items is not None:
+            elem = tgp_items.find("TGPItem")
+            if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                level_vals = []
+                for attr in elem.attrib:
+                    if attr.startswith("Level"):
+                        try:
+                            level_vals.append(int(elem.attrib[attr]))
+                        except ValueError:
+                            pass
+                if level_vals:
+                    min_offset = min(level_vals)
+                    max_offset = max(level_vals)
+                    ac_limits["nv_tgp_min"] = gpu_base_tgp + min_offset
+                    ac_limits["nv_tgp_max"] = gpu_base_tgp + max_offset
+
+    # Extract DC limits
+    dc_limits = {}
+    if cpu_settings is not None:
+        overclock_items = cpu_settings.find("OverclockItems")
+        if overclock_items is not None:
+            for tag, field in [
+                ("STAPM", "ppt_pl1_spl"),
+                ("PPTLimit", "ppt_pl2_sppt"),
+                ("fPPTLimit", "ppt_pl3_fppt"),
+                ("APUsPPTLimit", "ppt_apu_sppt"),
+                ("PlatformsPPT", "ppt_platform_sppt")
+            ]:
+                elem = overclock_items.find(tag)
+                if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                    try:
+                        min_val = int(elem.attrib.get("DCLowerLimit", 0))
+                        max_val = int(elem.attrib.get("DCUpperLimit", 0))
+                        def_val = int(elem.attrib.get("DCManual", 0))
+                    except ValueError:
+                        continue
+                    if min_val != 0 or max_val != 0:
+                        dc_limits[f"{field}_min"] = min_val
+                        if def_val != max_val and def_val != 0:
+                            dc_limits[f"{field}_def"] = def_val
+                        dc_limits[f"{field}_max"] = max_val
+
+    if gpu_settings is not None:
+        gpu_overclock = gpu_settings.find("NonSLIOverclockItems")
+        if gpu_overclock is not None:
+            # NBThermalTarget
+            elem = gpu_overclock.find("NBThermalTarget")
+            if elem is not None and elem.attrib.get("IsEnabled") == "True":
+                try:
+                    min_val = int(elem.attrib.get("DCLowerLimit", 0))
+                    max_val = int(elem.attrib.get("DCUpperLimit", 0))
+                except ValueError:
+                    pass
+                else:
+                    if min_val != 0 or max_val != 0:
+                        dc_limits["nv_temp_target_min"] = min_val
+                        dc_limits["nv_temp_target_max"] = max_val
+
+    # Print C struct
+    lines = []
+    lines.append("\t{")
+    lines.append("\t\t.matches = {")
+    lines.append(f'\t\t\tDMI_MATCH(DMI_BOARD_NAME, "{model_name}"),')
+    lines.append("\t\t},")
+    lines.append("\t\t.driver_data = &(struct power_data) {")
+    
+    if ac_limits:
+        lines.append("\t\t\t.ac_data = &(struct power_limits) {")
+        for key, val in ac_limits.items():
+            lines.append(f"\t\t\t\t.{key} = {val},")
+        lines.append("\t\t\t},")
+        
+    if dc_limits:
+        lines.append("\t\t\t.dc_data = &(struct power_limits) {")
+        for key, val in dc_limits.items():
+            lines.append(f"\t\t\t\t.{key} = {val},")
+        lines.append("\t\t\t},")
+        
+    fan_curve_str = "true" if requires_fan_curve else "false"
+    lines.append(f"\t\t\t.requires_fan_curve = {fan_curve_str},")
+    lines.append("\t\t},")
+    lines.append("\t},")
+    
+    return "\n".join(lines)
+
 def main():
-    parser = argparse.ArgumentParser(description="ASUS ThrottleGear XML Encryptor/Decryptor (Pure Python)")
+    parser = argparse.ArgumentParser(description="ASUS ThrottleGear XML Encryptor/Decryptor & C Struct Generator (Pure Python)")
     parser.add_argument("-i", "--input", required=True, help="Path to the input XML file")
-    parser.add_argument("-o", "--output", required=True, help="Path to the output XML file")
+    parser.add_argument("-o", "--output", help="Path to the output XML file (required unless -c is specified)")
+    parser.add_argument("-c", "--c-struct", action="store_true", help="Generate and print the C struct for the Linux kernel driver")
+    parser.add_argument("--gpu-base-tgp", type=int, default=55, help="NVIDIA base TGP in Watts (default: 55)")
+    parser.add_argument("--no-fan-curve", action="store_true", help="Set requires_fan_curve to false in the C struct")
     args = parser.parse_args()
     
     input_path = os.path.abspath(args.input)
-    output_path = os.path.abspath(args.output)
     
-    process_file(input_path, output_path)
+    if args.c_struct:
+        try:
+            tree = ET.parse(input_path)
+        except Exception as e:
+            print(f"Error: Failed to parse input XML file: {e}")
+            sys.exit(1)
+            
+        root = tree.getroot()
+        model_name = root.attrib.get("ModelName")
+        version_str = root.attrib.get("Version")
+        type_str = root.attrib.get("Type")
+        cryptography = root.attrib.get("Cryptography")
+        
+        if not all([model_name, version_str, type_str, cryptography]):
+            print("Error: XML is missing required root attributes (ModelName, Version, Type, Cryptography).")
+            sys.exit(1)
+            
+        if cryptography == "Encrypted":
+            key, iv = get_key_and_iv(model_name, version_str, type_str)
+            decrypt_xml(root, key, iv)
+            root.attrib["ModelName"] = model_name
+            root.attrib["Version"] = version_str
+            root.attrib["Type"] = type_str
+            
+        c_struct_str = generate_c_struct(root, gpu_base_tgp=args.gpu_base_tgp, requires_fan_curve=not args.no_fan_curve)
+        print(c_struct_str)
+    else:
+        if not args.output:
+            parser.error("-o/--output is required unless -c/--c-struct is specified.")
+        output_path = os.path.abspath(args.output)
+        process_file(input_path, output_path)
 
 if __name__ == "__main__":
     main()
