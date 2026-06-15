@@ -97,6 +97,44 @@ It maps the following low-level C functions:
 
 ---
 
-## 4. License
+## 4. Default File Locations on Windows
+
+On Windows, the ASUS Armoury Crate services store the ThrottleGear XML configuration files in the following system folders (inside the hidden `C:\ProgramData` folder by default):
+
+### A. Default Device Configurations
+Contains the baseline configurations for different device/model profiles (e.g., `ThrottleGear_YOURMODEL.xml`):
+```
+C:\ProgramData\ASUS\Armoury Crate Config\Data\
+```
+
+### B. Manual / DC Manual User Profiles
+Contains user-customized manual mode and DC manual mode profiles (e.g., `ThrottleGearManual.xml`):
+```
+C:\ProgramData\ASUS\Armoury Crate Service\Data\
+```
+
+---
+
+## 5. Mapping to Linux Kernel `asus-armoury.h`
+
+For Linux kernel development (specifically the `asus-armoury` driver), the decrypted ThrottleGear XML files contain the exact minimum (`LowerLimit`) and maximum (`UpperLimit`) bounds needed to populate `struct power_limits` entries.
+
+### A. CPU Power Limit Mapping
+Inside `<ThrottlePluginCPUSettings>` -> `<OverclockItems>`:
+- **`ppt_pl1_spl`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<PPTLimit>`**.
+- **`ppt_pl2_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<fPPTLimit>`** or **`<APUsPPTLimit>`** depending on the CPU architecture (Intel PL2 / AMD sPPT).
+- **`ppt_pl3_fppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<fPPTLimit>`**.
+- **`ppt_apu_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<APUsPPTLimit>`**.
+- **`ppt_platform_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<PlatformsPPT>`**.
+
+### B. NVIDIA GPU Tunable Mapping
+Inside `<ThrottlePluginGPUSettings>` -> `<NonSLIOverclockItems>`:
+- **`nv_dynamic_boost`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<DynamicBoost>`**.
+- **`nv_temp_target`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<NBThermalTarget>`**.
+- **`nv_tgp`** $\rightarrow$ maps to the `Default` and limits defined under **`<TGPItem>`**.
+
+---
+
+## 6. License
 
 This Python implementation is distributed under the terms of the MIT License. See the accompanying [LICENSE](../LICENSE) file for the full text.
