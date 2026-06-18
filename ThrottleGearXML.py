@@ -637,17 +637,21 @@ def main():
     parser.add_argument("-o", "--output", help="Path to the output XML file (required unless -c is specified)")
     parser.add_argument("-c", "--c-struct", action="store_true", help="Generate and print the C struct for the Linux kernel driver")
     parser.add_argument("-p", "--profile", "--device", dest="profile", help="Specific profile/device tag to parse from the XML (e.g. Ryzen, Eng)")
-    parser.add_argument("--gpu-base-tgp", type=int, default=55, help="NVIDIA base TGP in Watts (default: 55)")
-    parser.add_argument("--no-fan-curve", action="store_true", help="Set requires_fan_curve to false in the C struct")
-    parser.add_argument("--generate-patch", action="store_true", help="Generate and save a unified diff kernel patch")
-    parser.add_argument("--kernel-dir", help="Path to local Linux kernel directory containing drivers/platform/x86/asus-armoury.h")
-    parser.add_argument("--patch-dir", help="Directory to save the generated patch file (defaults to 'patches')")
-    parser.add_argument("--author", help="Author of the kernel patch (format: 'Name <email>')")
-    parser.add_argument("--sob", "--signed-off-by", dest="sob", help="Signed-off-by trailer of the kernel patch (format: 'Name <email>')")
+    parser.add_argument("-g", "--gpu-base-tgp", type=int, default=55, help="NVIDIA base TGP in Watts (default: 55)")
+    parser.add_argument("-n", "--no-fan-curve", action="store_true", help="Set requires_fan_curve to false in the C struct")
+    parser.add_argument("-P", "--generate-patch", action="store_true", help="Generate and save a unified diff kernel patch")
+    parser.add_argument("-k", "--kernel-dir", help="Path to local Linux kernel directory containing drivers/platform/x86/asus-armoury.h")
+    parser.add_argument("-d", "--patch-dir", help="Directory to save the generated patch file (defaults to 'patches')")
+    parser.add_argument("-A", "--author", help="Author of the kernel patch (format: 'Name <email>')")
+    parser.add_argument("-S", "--sob", "--signed-off-by", dest="sob", help="Signed-off-by trailer of the kernel patch (format: 'Name <email>')")
     args = parser.parse_args()
     
     input_path = os.path.abspath(args.input)
     
+    if args.generate_patch:
+        if not args.author or not args.sob:
+            parser.error("-A/--author and -S/--sob/--signed-off-by are required when -P/--generate-patch is specified.")
+            
     if args.c_struct or args.generate_patch:
         try:
             tree = ET.parse(input_path)
@@ -675,26 +679,12 @@ def main():
         c_struct_str, profile_used = generate_c_struct(root, profile=args.profile, gpu_base_tgp=args.gpu_base_tgp, requires_fan_curve=not args.no_fan_curve)
         
         if args.generate_patch:
-            # Determine default Git user if not provided
-            def_user = "Your Name <your.email@example.com>"
-            import subprocess
-            try:
-                name = subprocess.check_output(["git", "config", "user.name"]).decode("utf-8").strip()
-                email = subprocess.check_output(["git", "config", "user.email"]).decode("utf-8").strip()
-                if name and email:
-                    def_user = f"{name} <{email}>"
-            except Exception:
-                pass
-                
-            author = args.author if args.author else def_user
-            sob = args.sob if args.sob else author
-            
-            generate_patch_file(model_name, profile_used, c_struct_str, author, sob, kernel_dir=args.kernel_dir, patch_dir=args.patch_dir)
+            generate_patch_file(model_name, profile_used, c_struct_str, args.author, args.sob, kernel_dir=args.kernel_dir, patch_dir=args.patch_dir)
         else:
             print(c_struct_str)
     else:
         if not args.output:
-            parser.error("-o/--output is required unless -c/--c-struct or --generate-patch is specified.")
+            parser.error("-o/--output is required unless -c/--c-struct or -P/--generate-patch is specified.")
         output_path = os.path.abspath(args.output)
         process_file(input_path, output_path)
 
