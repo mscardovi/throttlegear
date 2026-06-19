@@ -18,7 +18,8 @@ To run this tool, you only need:
 ## File Structure
 
 - [ThrottleGear.py](ThrottleGear.py): The standalone Python script.
-- [Documentation/DETAILS.md](Documentation/DETAILS.md): Detailed explanation of the cryptography internals and parameter derivation.
+- [DETAILS.md](Documentation/DETAILS.md): Detailed explanation of the cryptography internals and parameter derivation.
+- [CONTRIBUTING.md](CONTRIBUTING.md): Contribution guidelines.
 - [LICENSE](LICENSE): The MIT License for the Python script.
 
 *(Note: No proprietary XML configuration files are hosted in this repository. You must copy your own configuration file from your system).*
