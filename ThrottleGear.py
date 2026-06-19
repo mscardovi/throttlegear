@@ -23,127 +23,123 @@ def get_key_and_iv(model_name, version_str, type_str):
     
     return bytes(key), iv
 
-def _get_libcrypto():
+def _init_libcrypto():
     for lib_name in ["libcrypto.so", "libcrypto.so.3", "libcrypto.so.1.1"]:
         try:
-            return ctypes.CDLL(lib_name)
+            lib = ctypes.CDLL(lib_name)
         except OSError:
             continue
+            
+        lib.EVP_CIPHER_CTX_new.restype = ctypes.c_void_p
+        lib.EVP_CIPHER_CTX_free.argtypes = [ctypes.c_void_p]
+        lib.EVP_aes_256_cbc.restype = ctypes.c_void_p
+        
+        lib.EVP_DecryptInit_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p
+        ]
+        lib.EVP_DecryptInit_ex.restype = ctypes.c_int
+        
+        lib.EVP_DecryptUpdate.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_char_p,
+            ctypes.c_int
+        ]
+        lib.EVP_DecryptUpdate.restype = ctypes.c_int
+        
+        lib.EVP_DecryptFinal_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int)
+        ]
+        lib.EVP_DecryptFinal_ex.restype = ctypes.c_int
+        
+        lib.EVP_EncryptInit_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_char_p,
+            ctypes.c_char_p
+        ]
+        lib.EVP_EncryptInit_ex.restype = ctypes.c_int
+        
+        lib.EVP_EncryptUpdate.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_char_p,
+            ctypes.c_int
+        ]
+        lib.EVP_EncryptUpdate.restype = ctypes.c_int
+        
+        lib.EVP_EncryptFinal_ex.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_int)
+        ]
+        lib.EVP_EncryptFinal_ex.restype = ctypes.c_int
+        
+        return lib
     raise RuntimeError("Could not load OpenSSL libcrypto library")
 
-def decrypt_aes_256_cbc(ciphertext, key, iv):
-    libcrypto = _get_libcrypto()
-            
-    libcrypto.EVP_CIPHER_CTX_new.restype = ctypes.c_void_p
-    libcrypto.EVP_CIPHER_CTX_free.argtypes = [ctypes.c_void_p]
-    libcrypto.EVP_aes_256_cbc.restype = ctypes.c_void_p
-    
-    libcrypto.EVP_DecryptInit_ex.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_char_p,
-        ctypes.c_char_p
-    ]
-    libcrypto.EVP_DecryptInit_ex.restype = ctypes.c_int
-    
-    libcrypto.EVP_DecryptUpdate.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_char_p,
-        ctypes.c_int
-    ]
-    libcrypto.EVP_DecryptUpdate.restype = ctypes.c_int
-    
-    libcrypto.EVP_DecryptFinal_ex.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int)
-    ]
-    libcrypto.EVP_DecryptFinal_ex.restype = ctypes.c_int
+_LIBCRYPTO = _init_libcrypto()
 
-    ctx = libcrypto.EVP_CIPHER_CTX_new()
+def decrypt_aes_256_cbc(ciphertext, key, iv):
+    ctx = _LIBCRYPTO.EVP_CIPHER_CTX_new()
     if not ctx:
         raise RuntimeError("Failed to create EVP_CIPHER_CTX")
         
     try:
-        cipher = libcrypto.EVP_aes_256_cbc()
-        if libcrypto.EVP_DecryptInit_ex(ctx, cipher, None, key, iv) != 1:
+        cipher = _LIBCRYPTO.EVP_aes_256_cbc()
+        if _LIBCRYPTO.EVP_DecryptInit_ex(ctx, cipher, None, key, iv) != 1:
             raise RuntimeError("EVP_DecryptInit_ex failed")
             
         out_buf = ctypes.create_string_buffer(len(ciphertext) + 32)
         out_len = ctypes.c_int(0)
         
-        if libcrypto.EVP_DecryptUpdate(ctx, out_buf, ctypes.byref(out_len), ciphertext, len(ciphertext)) != 1:
+        if _LIBCRYPTO.EVP_DecryptUpdate(ctx, out_buf, ctypes.byref(out_len), ciphertext, len(ciphertext)) != 1:
             raise RuntimeError("EVP_DecryptUpdate failed")
             
         final_len = ctypes.c_int(0)
         out_buf_final = ctypes.byref(out_buf, out_len.value)
-        if libcrypto.EVP_DecryptFinal_ex(ctx, out_buf_final, ctypes.byref(final_len)) != 1:
+        if _LIBCRYPTO.EVP_DecryptFinal_ex(ctx, out_buf_final, ctypes.byref(final_len)) != 1:
             raise RuntimeError("EVP_DecryptFinal_ex failed")
             
         total_len = out_len.value + final_len.value
         return out_buf.raw[:total_len]
     finally:
-        libcrypto.EVP_CIPHER_CTX_free(ctx)
+        _LIBCRYPTO.EVP_CIPHER_CTX_free(ctx)
 
 def encrypt_aes_256_cbc(plaintext, key, iv):
-    libcrypto = _get_libcrypto()
-            
-    libcrypto.EVP_CIPHER_CTX_new.restype = ctypes.c_void_p
-    libcrypto.EVP_CIPHER_CTX_free.argtypes = [ctypes.c_void_p]
-    libcrypto.EVP_aes_256_cbc.restype = ctypes.c_void_p
-    
-    libcrypto.EVP_EncryptInit_ex.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_char_p,
-        ctypes.c_char_p
-    ]
-    libcrypto.EVP_EncryptInit_ex.restype = ctypes.c_int
-    
-    libcrypto.EVP_EncryptUpdate.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int),
-        ctypes.c_char_p,
-        ctypes.c_int
-    ]
-    libcrypto.EVP_EncryptUpdate.restype = ctypes.c_int
-    
-    libcrypto.EVP_EncryptFinal_ex.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_int)
-    ]
-    libcrypto.EVP_EncryptFinal_ex.restype = ctypes.c_int
-
-    ctx = libcrypto.EVP_CIPHER_CTX_new()
+    ctx = _LIBCRYPTO.EVP_CIPHER_CTX_new()
     if not ctx:
         raise RuntimeError("Failed to create EVP_CIPHER_CTX")
         
     try:
-        cipher = libcrypto.EVP_aes_256_cbc()
-        if libcrypto.EVP_EncryptInit_ex(ctx, cipher, None, key, iv) != 1:
+        cipher = _LIBCRYPTO.EVP_aes_256_cbc()
+        if _LIBCRYPTO.EVP_EncryptInit_ex(ctx, cipher, None, key, iv) != 1:
             raise RuntimeError("EVP_EncryptInit_ex failed")
             
         out_buf = ctypes.create_string_buffer(len(plaintext) + 32)
         out_len = ctypes.c_int(0)
         
-        if libcrypto.EVP_EncryptUpdate(ctx, out_buf, ctypes.byref(out_len), plaintext, len(plaintext)) != 1:
+        if _LIBCRYPTO.EVP_EncryptUpdate(ctx, out_buf, ctypes.byref(out_len), plaintext, len(plaintext)) != 1:
             raise RuntimeError("EVP_EncryptUpdate failed")
             
         final_len = ctypes.c_int(0)
         out_buf_final = ctypes.byref(out_buf, out_len.value)
-        if libcrypto.EVP_EncryptFinal_ex(ctx, out_buf_final, ctypes.byref(final_len)) != 1:
+        if _LIBCRYPTO.EVP_EncryptFinal_ex(ctx, out_buf_final, ctypes.byref(final_len)) != 1:
             raise RuntimeError("EVP_EncryptFinal_ex failed")
             
         total_len = out_len.value + final_len.value
         return out_buf.raw[:total_len]
     finally:
-        libcrypto.EVP_CIPHER_CTX_free(ctx)
+        _LIBCRYPTO.EVP_CIPHER_CTX_free(ctx)
 
 def decrypt_xml(root, key, iv):
     min_loader_version = root.attrib.get("MinLoaderVersion", "5.7.7.0")
