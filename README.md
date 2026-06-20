@@ -21,7 +21,7 @@ To run this tool, you only need:
 - [tests/](tests): Contains the automated unit test suite.
 - [DETAILS.md](Documentation/DETAILS.md): Detailed explanation of the cryptography internals and parameter derivation.
 - [CONTRIBUTING.md](CONTRIBUTING.md): Contribution guidelines.
-- [LICENSE](LICENSE): The MIT License for the Python script.
+- [LICENSE](LICENSE): The GNU Affero General Public License version 3 (AGPLv3) for the Python script.
 
 *(Note: No proprietary XML configuration files are hosted in this repository. You must copy your own configuration file from your system).*
 
@@ -79,7 +79,7 @@ python -m unittest discover -s tests
 
 **IMPORTANT: Read this before proceeding.**
 
-- While the Python code itself is open-source (MIT licensed) and contains no proprietary code or copyrights, extracting, decrypting, and modifying XML configuration files is done **entirely at the user's own risk**.
+- While the Python code itself is open-source (AGPLv3 licensed) and contains no proprietary code or copyrights, extracting, decrypting, and modifying XML configuration files is done **entirely at the user's own risk**.
 - Modifying system configuration files might cause hardware instability, driver errors, or Armoury Crate malfunctioning.
 - The author of this repository is not affiliated, associated, authorized, endorsed by, or in any way officially connected with ASUSTeK Computer Inc. (ASUS).
 

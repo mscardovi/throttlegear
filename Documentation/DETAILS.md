@@ -137,4 +137,4 @@ Inside `<ThrottlePluginGPUSettings>` -> `<NonSLIOverclockItems>`:
 
 ## 6. License
 
-This Python implementation is distributed under the terms of the MIT License. See the accompanying [LICENSE](../LICENSE) file for the full text.
+This Python implementation is distributed under the terms of the GNU Affero General Public License version 3 (AGPLv3). See the accompanying [LICENSE](../LICENSE) file for the full text.
