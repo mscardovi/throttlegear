@@ -524,7 +524,6 @@ pub fn generate_patch_file(
          The limits are extracted from the device's ThrottleGear XML configuration\n\
          file for the '{}' profile.\n\
          \n\
-         Assisted-by: ThrottleGear\n\
          Signed-off-by: {}\n\
          ---\n\
          {}\n\
