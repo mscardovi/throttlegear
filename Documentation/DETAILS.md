@@ -1,14 +1,34 @@
-# ThrottleGear XML Cryptography Internals
+# ThrottleGear XML Cryptography & Tool Internals
 
-This document explains the cryptography, parameter derivation, and implementation details of the pure Python ASUS ThrottleGear XML encryptor/decryptor.
+This document details the cryptography parameters, XML structure, mapping specifications, and the internal design of the Rust-based ASUS ThrottleGear tool.
 
 ---
 
-## 1. Parameter Derivation
+## Part 1: XML Specifications & Cryptography Design
 
+This section covers how the ASUS ThrottleGear XML configurations are structured, located, encrypted, and mapped.
+
+### 1.1 Default File Locations (Windows)
+On Windows, the ASUS Armoury Crate services store the ThrottleGear XML configuration files in the following system folders (inside the hidden `C:\ProgramData` folder by default):
+
+#### A. Default Device Configurations
+Contains the baseline configurations for different device/model profiles (e.g., `ThrottleGear_YOURMODEL.xml`):
+```
+C:\ProgramData\ASUS\Armoury Crate Config\Data\
+```
+
+#### B. Manual / DC Manual User Profiles
+Contains user-customized manual mode and DC manual mode profiles (e.g., `ThrottleGearManual.xml`):
+```
+C:\ProgramData\ASUS\Armoury Crate Service\Data\
+```
+
+---
+
+### 1.2 Cryptography Parameter Derivation
 The encryption uses **AES-256-CBC** with PKCS7 padding. The cryptographic key and Initialization Vector (IV) are derived directly from the root attributes of the `<ThrottlePluginConfig>` XML element:
 
-### A. Key Derivation (32 Bytes / 256 Bits)
+#### A. Key Derivation (32 Bytes / 256 Bits)
 The key is determined by the `Type` and `ModelName` attributes:
 1. A 32-byte array initialized to `0`.
 2. The first byte (index `0`) is set to:
@@ -17,16 +37,14 @@ The key is determined by the `Type` and `ModelName` attributes:
 3. The ASCII bytes of the `ModelName` attribute are copied into the key array starting at index `1`, up to a maximum of 31 bytes.
 4. The remaining bytes of the array are left as `0`.
 
-**C# Equivalent:**
+**C# Reference:**
 ```csharp
 byte[] key = new byte[32];
 key[0] = (type == "DT") ? (byte)1 : (byte)0;
 Array.Copy(Encoding.ASCII.GetBytes(modelName), 0, key, 1, Math.Min(31, modelName.Length));
 ```
 
----
-
-### B. IV Derivation (16 Bytes / 128 Bits)
+#### B. IV Derivation (16 Bytes / 128 Bits)
 The initial IV is derived from the `Version` attribute (e.g., `"1.0.5"` or `"1.0.5.2"`):
 1. The version string is parsed into four integer components: `Major`, `Minor`, `Build`, and `Revision`.
 2. Undefined components in the version string (such as `Revision` in `"1.0.5"`) default to `-1`.
@@ -40,7 +58,7 @@ The initial IV is derived from the `Version` attribute (e.g., `"1.0.5"` or `"1.0
 For `"1.0.5"`, the parsed components are `Major=1`, `Minor=0`, `Build=5`, `Revision=-1`, which results in the following 16-byte array:
 `\x01\x00\x00\x00 \x00\x00\x00\x00 \x05\x00\x00\x00 \xff\xff\xff\xff`
 
-**C# Equivalent:**
+**C# Reference:**
 ```csharp
 byte[] iv = new byte[16];
 Array.Copy(BitConverter.GetBytes(version.Major), 0, iv, 0, 4);
@@ -51,8 +69,7 @@ Array.Copy(BitConverter.GetBytes(version.Revision), 0, iv, 12, 4);
 
 ---
 
-## 2. XML Encryption Standards
-
+### 1.3 XML Encryption Standards
 The XML files follow the standard **W3C XML Encryption Syntax and Processing** specification:
 
 1. **Outer Encryption (`content: false`)**:
@@ -73,53 +90,10 @@ The XML files follow the standard **W3C XML Encryption Syntax and Processing** s
 
 ---
 
-## 3. Pure Python Implementation Details
-
-Since the Python standard library does not include a native interface for symmetric AES encryption, the script employs Python's `ctypes` foreign function interface to load the system's pre-installed OpenSSL dynamic library (`libcrypto`).
-
-### A. OpenSSL EVP API Loading
-The script looks for standard Linux OpenSSL shared objects in order of preference:
-1. `libcrypto.so`
-2. `libcrypto.so.3`
-3. `libcrypto.so.1.1`
-
-It maps the following low-level C functions:
-- `EVP_CIPHER_CTX_new()` / `EVP_CIPHER_CTX_free()`: Allocate and free the cipher context structure.
-- `EVP_aes_256_cbc()`: Fetch the cipher type structure for AES-256-CBC.
-- `EVP_DecryptInit_ex()` / `EVP_EncryptInit_ex()`: Bind the context, cipher type, key, and IV.
-- `EVP_DecryptUpdate()` / `EVP_EncryptUpdate()`: Process block updates.
-- `EVP_DecryptFinal_ex()` / `EVP_EncryptFinal_ex()`: Flush the final block and perform PKCS7 padding verification/generation.
-
-### B. Standard XML Parsing
-`xml.etree.ElementTree` is used to load, traverse, and modify the XML tree in memory. 
-- Elements are indented nicely before writing using `ET.indent()` (available in Python 3.9+).
-- Namespaces are registered with `ET.register_namespace` to ensure output elements do not get prefixed with auto-generated namespace abbreviations (e.g., `<ns0:EncryptedData>`).
-
----
-
-## 4. Default File Locations on Windows
-
-On Windows, the ASUS Armoury Crate services store the ThrottleGear XML configuration files in the following system folders (inside the hidden `C:\ProgramData` folder by default):
-
-### A. Default Device Configurations
-Contains the baseline configurations for different device/model profiles (e.g., `ThrottleGear_YOURMODEL.xml`):
-```
-C:\ProgramData\ASUS\Armoury Crate Config\Data\
-```
-
-### B. Manual / DC Manual User Profiles
-Contains user-customized manual mode and DC manual mode profiles (e.g., `ThrottleGearManual.xml`):
-```
-C:\ProgramData\ASUS\Armoury Crate Service\Data\
-```
-
----
-
-## 5. Mapping to Linux Kernel `asus-armoury.h`
-
+### 1.4 Mapping to Linux Kernel `asus-armoury.h`
 For Linux kernel development (specifically the `asus-armoury` driver), the decrypted ThrottleGear XML files contain the exact minimum (`LowerLimit`) and maximum (`UpperLimit`) bounds needed to populate `struct power_limits` entries.
 
-### A. CPU Power Limit Mapping
+#### A. CPU Power Limit Mapping
 Inside `<ThrottlePluginCPUSettings>` -> `<OverclockItems>`:
 - **`ppt_pl1_spl`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<PPTLimit>`**.
 - **`ppt_pl2_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<fPPTLimit>`** or **`<APUsPPTLimit>`** depending on the CPU architecture (Intel PL2 / AMD sPPT).
@@ -127,7 +101,7 @@ Inside `<ThrottlePluginCPUSettings>` -> `<OverclockItems>`:
 - **`ppt_apu_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<APUsPPTLimit>`**.
 - **`ppt_platform_sppt`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<PlatformsPPT>`**.
 
-### B. NVIDIA GPU Tunable Mapping
+#### B. NVIDIA GPU Tunable Mapping
 Inside `<ThrottlePluginGPUSettings>` -> `<NonSLIOverclockItems>`:
 - **`nv_dynamic_boost`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<DynamicBoost>`**.
 - **`nv_temp_target`** $\rightarrow$ maps to the `LowerLimit` and `UpperLimit` of **`<NBThermalTarget>`**.
@@ -135,6 +109,29 @@ Inside `<ThrottlePluginGPUSettings>` -> `<NonSLIOverclockItems>`:
 
 ---
 
-## 6. License
+## Part 2: Rust Tool Implementation
 
-This Python implementation is distributed under the terms of the GNU Affero General Public License version 3 (AGPLv3). See the accompanying [LICENSE](../LICENSE) file for the full text.
+This section explains how the command-line utility implements cryptography and parses XML files.
+
+### 2.1 Low-level Cryptography FFI
+To maintain a lightweight footprint without heavy dependencies, the tool links directly against the system's pre-installed OpenSSL dynamic library (`libcrypto`) using Rust's Foreign Function Interface (FFI).
+
+Using Rust's native `#[link(name = "crypto")]` and `extern "C"` declarations, the binary invokes low-level OpenSSL EVP functions:
+- `EVP_CIPHER_CTX_new()` / `EVP_CIPHER_CTX_free()`: Allocate and free the cipher context structure.
+- `EVP_aes_256_cbc()`: Fetch the cipher type structure for AES-256-CBC.
+- `EVP_DecryptInit_ex()` / `EVP_EncryptInit_ex()`: Bind the context, cipher type, key, and IV.
+- `EVP_DecryptUpdate()` / `EVP_EncryptUpdate()`: Process block updates.
+- `EVP_DecryptFinal_ex()` / `EVP_EncryptFinal_ex()`: Flush the final block and perform PKCS7 padding verification/generation.
+
+---
+
+### 2.2 Custom XML Parsing & Serialization
+Instead of utilizing large external crates, a custom recursive descent XML parser and serializer are implemented in Rust:
+- An `XmlElement` structure represents XML elements, tracking their name, attributes, and child nodes (as a vector of `XmlNode` variants of elements or text).
+- The serializer recursively prints the nodes using standard indentations and preserves namespaces exactly as specified in the original file format, preventing incorrect namespace prefixes.
+
+---
+
+## Part 3: License
+
+This Rust implementation is distributed under the terms of the GNU Affero General Public License version 3 (AGPLv3). See the accompanying [LICENSE](../LICENSE) file for the full text.

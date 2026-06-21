@@ -9,7 +9,7 @@ use patch::generate_patch_file;
 use xml_processor::{parse_xml_str, serialize_xml, decrypt_xml, encrypt_xml};
 
 fn print_help() {
-    println!("ASUS ThrottleGear XML Encryptor/Decryptor & C Struct Generator (Pure Rust)");
+    println!("ASUS ThrottleGear XML Encryptor/Decryptor & C Struct Generator (Rust)");
     println!("\nUsage:");
     println!("  throttlegear -i <INPUT> [OPTIONS]");
     println!("\nOptions:");
