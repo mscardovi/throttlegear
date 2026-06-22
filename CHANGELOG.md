@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.2] - 2026-06-22
+
+### Changed
+- **Patch Template Cleanup**: Removed the `From 0000000...` header line and the `Assisted-by: ThrottleGear` trailer from the generated kernel patches to match standard kernel patch submission guidelines.
+- **Git Version Metadata**: Updated the Git metadata footer version in generated patches to `2.54.0`.
+
+---
+
 ## [0.2.1] - 2026-06-21
 
 ### Added
