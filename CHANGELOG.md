@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.4] - 2026-06-30
+
+### Changed
+- **LCS-Based Fine-Grained Diffs**: Refactored the unified diff generator to use an LCS (Longest Common Subsequence) algorithm on the modified section of the file. This ensures that only the parameters that have actually changed are replaced in the generated patch, while unchanged parameters remain as standard context lines.
+
+---
+
+## [0.2.3] - 2026-06-30
+
+### Fixed
+- **Value Parsing Bug**: Fixed a parsing bug where parameter values with leading whitespace (e.g., after the `=` symbol) failed to be extracted, which caused limits comparison to evaluate both mainline and generated data as empty and falsely report that no differences existed.
+
+---
+
 ## [0.2.2] - 2026-06-22
 
 ### Changed
