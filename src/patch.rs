@@ -43,10 +43,11 @@ fn parse_line_field_and_val(line: &str) -> Option<(String, i32)> {
     let eq_idx = line[dot_idx..].find('=')?;
     let field = line[dot_idx + 1..dot_idx + eq_idx].trim().to_string();
     let val_str: String = line[dot_idx + eq_idx + 1..]
+        .trim()
         .chars()
         .take_while(|c| c.is_digit(10) || *c == '-')
         .collect();
-    let val = val_str.trim().parse::<i32>().ok()?;
+    let val = val_str.parse::<i32>().ok()?;
     Some((field, val))
 }
 
@@ -198,10 +199,11 @@ fn parse_c_struct_limits(
                 if let Some(eq_idx) = line[dot_idx..].find('=') {
                     let field = line[dot_idx + 1..dot_idx + eq_idx].trim();
                     let val_str: String = line[dot_idx + eq_idx + 1..]
+                        .trim()
                         .chars()
                         .take_while(|c| c.is_digit(10) || *c == '-')
                         .collect();
-                    if let Ok(val) = val_str.trim().parse::<i32>() {
+                    if let Ok(val) = val_str.parse::<i32>() {
                         if current_section == Some("AC") {
                             ac_limits.insert(field.to_string(), val);
                         } else if current_section == Some("DC") {
@@ -639,8 +641,9 @@ mod tests {
         // Verification:
         // 1. DMI match line preserved as GU604V
         assert!(updated.iter().any(|l| l.contains("DMI_MATCH(DMI_BOARD_NAME, \"GU604V\")")));
-        // 2. AC pl1_spl_max updated to 130
+        // 2. AC pl1_spl_max updated to 130 and old 120 removed
         assert!(updated.iter().any(|l| l.contains(".ppt_pl1_spl_max = 130")));
+        assert!(!updated.iter().any(|l| l.contains(".ppt_pl1_spl_max = 120")));
         // 3. DC pl2_sppt_def preserved
         assert!(updated.iter().any(|l| l.contains(".ppt_pl2_sppt_def = 40")));
         // 4. requires_fan_curve appended
