@@ -240,6 +240,47 @@ pub fn generate_unified_diff(
     let mod_mid_start = prefix_len;
     let mod_mid_end = modified.len() - suffix_len;
 
+    let orig_mid = &original[orig_mid_start..orig_mid_end];
+    let mod_mid = &modified[mod_mid_start..mod_mid_end];
+
+    #[derive(Debug, Clone)]
+    enum DiffOp {
+        Keep(String),
+        Delete(String),
+        Add(String),
+    }
+
+    let n = orig_mid.len();
+    let m = mod_mid.len();
+    let mut dp = vec![vec![0; m + 1]; n + 1];
+    for i in 1..=n {
+        for j in 1..=m {
+            if orig_mid[i - 1] == mod_mid[j - 1] {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = dp[i - 1][j].max(dp[i][j - 1]);
+            }
+        }
+    }
+
+    let mut i = n;
+    let mut j = m;
+    let mut ops = Vec::new();
+    while i > 0 || j > 0 {
+        if i > 0 && j > 0 && orig_mid[i - 1] == mod_mid[j - 1] {
+            ops.push(DiffOp::Keep(orig_mid[i - 1].clone()));
+            i -= 1;
+            j -= 1;
+        } else if j > 0 && (i == 0 || dp[i][j - 1] >= dp[i - 1][j]) {
+            ops.push(DiffOp::Add(mod_mid[j - 1].clone()));
+            j -= 1;
+        } else {
+            ops.push(DiffOp::Delete(orig_mid[i - 1].clone()));
+            i -= 1;
+        }
+    }
+    ops.reverse();
+
     let context_before = 3;
     let context_after = 3;
 
@@ -260,7 +301,7 @@ pub fn generate_unified_diff(
 
     let orig_len = end_context_idx - start_context_idx;
     let mod_len = (orig_mid_start - start_context_idx)
-        + (mod_mid_end - mod_mid_start)
+        + mod_mid.len()
         + (end_context_idx - orig_mid_end);
 
     diff.push(format!(
@@ -275,16 +316,22 @@ pub fn generate_unified_diff(
         diff.push(format!(" {}", original[i]));
     }
 
-    let mut deletions = 0;
-    for i in orig_mid_start..orig_mid_end {
-        diff.push(format!("-{}", original[i]));
-        deletions += 1;
-    }
-
     let mut additions = 0;
-    for i in mod_mid_start..mod_mid_end {
-        diff.push(format!("+{}", modified[i]));
-        additions += 1;
+    let mut deletions = 0;
+    for op in &ops {
+        match op {
+            DiffOp::Keep(line) => {
+                diff.push(format!(" {}", line));
+            }
+            DiffOp::Delete(line) => {
+                diff.push(format!("-{}", line));
+                deletions += 1;
+            }
+            DiffOp::Add(line) => {
+                diff.push(format!("+{}", line));
+                additions += 1;
+            }
+        }
     }
 
     for i in orig_mid_end..end_context_idx {
